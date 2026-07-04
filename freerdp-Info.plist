@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh_CN</string>
+	<key>CFBundleExecutable</key>
+	<string>sdl3-freerdp</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.freerdp.sdl3</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>FreeRDP</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>3.27.1</string>
+	<key>CFBundleVersion</key>
+	<string>3.27.1</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+
+	<!-- macOS TCC (Privacy) Permissions for Remote Desktop -->
+	<key>NSScreenCaptureDescription</key>
+	<string>FreeRDP needs Screen Recording permission to display the remote desktop content in a window.</string>
+
+	<key>NSAppleEventsUsageDescription</key>
+	<string>FreeRDP needs Accessibility permission to send keyboard and mouse input to the remote desktop.</string>
+
+	<key>NSInputMonitoringUsageDescription</key>
+	<string>FreeRDP needs Input Monitoring permission to capture keyboard input for the remote desktop session.</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>FreeRDP needs Microphone permission to redirect audio input to the remote desktop.</string>
+
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>FreeRDP needs access to folders to support drive redirection (/drive:).</string>
+
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>FreeRDP needs access to folders to support drive redirection (/drive:).</string>
+
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>FreeRDP needs access to folders to support drive redirection (/drive:).</string>
+</dict>
+</plist>

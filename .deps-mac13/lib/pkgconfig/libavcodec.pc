@@ -1,0 +1,14 @@
+prefix=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13
+exec_prefix=${prefix}
+libdir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/lib
+includedir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/include
+
+Name: libavcodec
+Description: FFmpeg codec library
+Version: 61.19.100
+Requires: 
+Requires.private: libavutil >= 59.39.100
+Conflicts:
+Libs: -L${libdir}  -lavcodec 
+Libs.private: -lm -L/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/lib -lopenh264 -pthread -framework VideoToolbox -framework CoreFoundation -framework CoreMedia -framework CoreVideo -framework CoreServices
+Cflags: -I${includedir}

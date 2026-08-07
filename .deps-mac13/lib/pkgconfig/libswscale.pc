@@ -1,0 +1,14 @@
+prefix=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13
+exec_prefix=${prefix}
+libdir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/lib
+includedir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/include
+
+Name: libswscale
+Description: FFmpeg image rescaling library
+Version: 8.3.100
+Requires: 
+Requires.private: libavutil >= 59.39.100
+Conflicts:
+Libs: -L${libdir}  -lswscale 
+Libs.private: -lm
+Cflags: -I${includedir}

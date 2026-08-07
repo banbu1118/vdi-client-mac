@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <Preference
+        android:icon="@drawable/ic_computer"
+        android:key="settings.client"
+        android:title="@string/settings_cat_client"
+        app:fragment="com.freerdp.freerdpcore.presentation.ApplicationSettingsActivity$ClientFragment" />
+
+    <Preference
+        android:icon="@drawable/ic_tune"
+        android:key="settings.ui"
+        android:title="@string/settings_cat_ui"
+        app:fragment="com.freerdp.freerdpcore.presentation.ApplicationSettingsActivity$UiFragment" />
+
+    <Preference
+        android:icon="@drawable/ic_battery_saver"
+        android:key="settings.power"
+        android:title="@string/settings_cat_power"
+        app:fragment="com.freerdp.freerdpcore.presentation.ApplicationSettingsActivity$PowerFragment" />
+
+    <Preference
+        android:icon="@drawable/ic_security"
+        android:key="settings.security"
+        android:title="@string/settings_cat_security"
+        app:fragment="com.freerdp.freerdpcore.presentation.ApplicationSettingsActivity$SecurityFragment" />
+
+    <Preference
+        android:icon="@drawable/ic_experiment"
+        android:key="settings.experimental"
+        android:title="@string/settings_cat_experimental"
+        app:fragment="com.freerdp.freerdpcore.presentation.ApplicationSettingsActivity$ExperimentalFragment" />
+
+</PreferenceScreen>

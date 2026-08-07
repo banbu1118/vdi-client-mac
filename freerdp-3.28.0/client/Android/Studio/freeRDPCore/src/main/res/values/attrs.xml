@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <declare-styleable name="IntEditTextPreference">
+        <attr name="bounds_min" format="integer" />
+        <attr name="bounds_max" format="integer" />
+        <attr name="bounds_default" format="integer" />
+    </declare-styleable>
+
+</resources>

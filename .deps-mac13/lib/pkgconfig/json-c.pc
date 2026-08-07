@@ -1,0 +1,12 @@
+prefix=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13
+exec_prefix=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13
+libdir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/lib
+includedir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/include
+
+Name: json-c
+Description: A JSON implementation in C
+Version: 0.17
+Requires:
+Libs.private: -lm
+Libs: -L${libdir} -ljson-c
+Cflags: -I${includedir} -I${includedir}/json-c

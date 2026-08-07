@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    android:installLocation="auto">
+
+    <application
+        android:name="com.freerdp.afreerdp.application.GlobalApp"
+        android:icon="@mipmap/ic_launcher"
+        android:label="aFreeRDP"
+        android:resizeableActivity="true">
+
+        <!-- Main activity -->
+        <activity
+            android:exported="true"
+            android:name="com.freerdp.freerdpcore.presentation.HomeActivity"
+            android:alwaysRetainTaskState="true"
+            android:label="@string/app_title"
+            android:theme="@style/Theme.Main"
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|density|screenLayout">
+
+            <intent-filter android:label="@string/app_title">
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:mimeType="application/rdp" />
+                <data android:mimeType="application/x-rdp" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="rdp" />
+                <data android:scheme="Rdp" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="file" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+
+                <!-- API 31+: clean suffix match -->
+                <data android:pathSuffix=".rdp" />
+                <data android:pathSuffix=".rdpw" />
+
+                <!-- API 29-30 fallback: pathPattern can't skip dots, one entry per dot count -->
+                <data android:pathPattern=".*\\.rdp" />
+                <data android:pathPattern=".*\\..*\\.rdp" />
+                <data android:pathPattern=".*\\..*\\..*\\.rdp" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.rdp" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.rdp" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\.rdp" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\..*\\.rdp" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\..*\\..*\\.rdp" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\..*\\..*\\..*\\.rdp" />
+                <data android:pathPattern=".*\\.rdpw" />
+                <data android:pathPattern=".*\\..*\\.rdpw" />
+                <data android:pathPattern=".*\\..*\\..*\\.rdpw" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.rdpw" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.rdpw" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\.rdpw" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\..*\\.rdpw" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\..*\\..*\\.rdpw" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\..*\\..*\\..*\\..*\\.rdpw" />
+            </intent-filter>
+        </activity>
+
+        <!-- Session request handler activity - used for search and internally to start sessions -->
+        <!-- This should actually be defined in FreeRDPCore lib but Android manifest merging will -->
+        <!-- append the libs manifest to the apps manifest and therefore aliasing is not possible -->
+        <activity
+            android:exported="true"
+            android:name="com.freerdp.freerdpcore.services.SessionRequestHandlerActivity"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.Main">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity>
+
+        <meta-data android:name="com.samsung.android.keepalive.density" android:value="true"/>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.freerdp.afreerdp.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_provider_paths" />
+        </provider>
+
+    </application>
+
+</manifest>
+

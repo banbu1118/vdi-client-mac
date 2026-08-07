@@ -1,0 +1,13 @@
+# 构建产物
+build/
+freerdp-3.28.0/build-mac/
+freerdp-3.28.0/install-mac/
+qfreerdp-vdi-client/build/
+*.dmg
+
+# macOS 系统文件
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

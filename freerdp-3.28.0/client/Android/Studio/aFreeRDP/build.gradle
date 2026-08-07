@@ -1,0 +1,62 @@
+apply plugin: 'com.android.application'
+android {
+    compileSdkVersion = rootProject.ext.compileApi
+    buildToolsVersion = rootProject.ext.toolsVersion
+
+    defaultConfig {
+        applicationId "com.freerdp.afreerdp"
+        minSdkVersion rootProject.ext.minApi
+        targetSdkVersion rootProject.ext.targetApi
+        versionName = rootProject.ext.versionName
+        if (versionName.isEmpty())
+          versionName = androidGitVersion.name()
+
+        versionCode = rootProject.ext.versionCode
+        if (versionCode <= 0)
+          versionCode = androidGitVersion.code()
+
+        println 'VERSION_NAME:        ' + versionName
+        println 'VERSION_CODE:        ' + versionCode
+    }
+
+    splits {
+        abi {
+            enable rootProject.ext.splitEnabled
+            reset()
+            include rootProject.ext.splitArchs
+            universalApk rootProject.ext.universal
+        }
+    }
+    
+    signingConfigs {
+        release {
+            storeFile file(RELEASE_STORE_FILE)
+            storePassword RELEASE_STORE_PASSWORD
+            keyAlias RELEASE_KEY_ALIAS
+            keyPassword RELEASE_KEY_PASSWORD
+            storeType "jks"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+        }
+        debug {
+            jniDebuggable true
+        }
+        qa {
+            jniDebuggable true
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    implementation project(':freeRDPCore')
+}

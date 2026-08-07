@@ -1,0 +1,14 @@
+prefix=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13
+exec_prefix=${prefix}
+libdir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/lib
+includedir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/include
+
+Name: libavfilter
+Description: FFmpeg audio/video filtering library
+Version: 10.4.100
+Requires: 
+Requires.private: libavutil >= 59.39.100
+Conflicts:
+Libs: -L${libdir}  -lavfilter 
+Libs.private: -pthread -lm
+Cflags: -I${includedir}

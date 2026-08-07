@@ -1,0 +1,14 @@
+prefix=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13
+exec_prefix=${prefix}
+libdir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/lib
+includedir=/Users/kk/Downloads/vdi-client-mac-main/.deps-mac13/include
+
+Name: libavdevice
+Description: FFmpeg device handling library
+Version: 61.3.100
+Requires: 
+Requires.private: libavformat >= 61.7.100, libavcodec >= 61.19.100, libavutil >= 59.39.100
+Conflicts:
+Libs: -L${libdir}  -lavdevice 
+Libs.private: -lm
+Cflags: -I${includedir}

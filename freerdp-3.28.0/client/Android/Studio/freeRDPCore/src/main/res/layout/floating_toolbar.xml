@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/floating_toolbar_container"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_centerInParent="true"
+    android:background="#757575"
+    android:elevation="8dp"
+    android:orientation="horizontal"
+    android:padding="4dp">
+
+    <ImageButton
+        android:id="@+id/floating_toolbar_handle"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?android:attr/selectableItemBackground"
+        app:tint="#FFFFFF"
+        android:src="@drawable/ic_drag_indicator" />
+
+    <LinearLayout
+        android:id="@+id/floating_toolbar_buttons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/floating_toolbar_touch_pointer"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:contentDescription="@string/menu_touch_pointer"
+            app:tint="#FFFFFF"
+            android:src="@drawable/ic_touch_pointer" />
+
+        <ImageButton
+            android:id="@+id/floating_toolbar_sys_keyboard"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:contentDescription="@string/menu_sys_keyboard"
+            app:tint="#FFFFFF"
+            android:src="@drawable/ic_keyboard" />
+
+        <ImageButton
+            android:id="@+id/floating_toolbar_ext_keyboard"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:contentDescription="@string/menu_ext_keyboard"
+            app:tint="#FFFFFF"
+            android:src="@drawable/ic_fn_keyboard" />
+
+    </LinearLayout>
+
+</LinearLayout>

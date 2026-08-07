@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/bookmark_connect"
+        app:showAsAction="ifRoom"
+        android:title="@string/menu_connect" />
+
+    <item
+        android:id="@+id/bookmark_edit"
+        app:showAsAction="ifRoom"
+        android:title="@string/menu_edit" />
+
+    <item
+        android:id="@+id/bookmark_delete"
+        app:showAsAction="ifRoom"
+        android:title="@string/menu_delete" />
+
+    <item
+        android:id="@+id/bookmark_export"
+        app:showAsAction="ifRoom"
+        android:title="@string/bookmark_export" />
+
+</menu>

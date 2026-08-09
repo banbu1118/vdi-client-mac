@@ -20,10 +20,12 @@ if(WITH_AVF)
   find_library(AVFOUNDATION AVFoundation)
   find_library(COREMEDIA CoreMedia)
   find_library(COREVIDEO CoreVideo)
+  find_library(VIDEOTOOLBOX VideoToolbox)
 
   set(${MODULE_PREFIX}_SRCS camera_avf.m)
 
-  set(${MODULE_PREFIX}_LIBS winpr freerdp ${AVFOUNDATION} ${COREMEDIA} ${COREVIDEO})
+  set(${MODULE_PREFIX}_LIBS winpr freerdp ${AVFOUNDATION} ${COREMEDIA} ${COREVIDEO}
+      ${VIDEOTOOLBOX})
 
   include_directories(..)
 

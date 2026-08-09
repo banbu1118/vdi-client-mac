@@ -32,6 +32,7 @@
 #include <winpr/cmdline.h>
 
 #import <AVFoundation/AVFoundation.h>
+#import <AppKit/AppKit.h>
 
 #define __COREFOUNDATION_CFPLUGINCOM__ 1
 #define IUNKNOWN_C_GUTS   \
@@ -330,6 +331,28 @@ static UINT audin_mac_free(IAudinDevice *device)
 }
 
 /**
+ * Bring the app to the foreground right before requesting microphone access.
+ *
+ * qf-client runs as an LSUIElement (accessory) app with no Dock icon and is
+ * normally not the active application. On macOS 13/15 TCCUI only presents the
+ * permission prompt when the requesting app is the frontmost (active)
+ * application, otherwise the request silently hangs and no entry appears in
+ * System Settings > Privacy & Security. Activate synchronously on the main
+ * thread (no-op when already on it) so the prompt can be presented.
+ */
+static void audin_mac_activate_app(void)
+{
+	dispatch_block_t block = ^{
+		[[NSRunningApplication currentApplication]
+		    activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+	};
+	if ([NSThread isMainThread])
+		block();
+	else
+		dispatch_sync(dispatch_get_main_queue(), block);
+}
+
+/**
  * Request microphone access synchronously. The official backend used an
  * asynchronous completion handler which raced with the server's SNDIN_OPEN:
  * if the user had not yet answered the TCC prompt, isAuthorized was still
@@ -353,7 +376,10 @@ static BOOL audin_mac_ensure_authorization(void)
 		if (status == AVAuthorizationStatusDenied || status == AVAuthorizationStatusRestricted)
 			return FALSE;
 
-		/* NotDetermined: ask for permission synchronously */
+		/* NotDetermined: activate the app first so the TCC prompt is
+		 * presented on macOS 13/15, then ask for permission synchronously */
+		audin_mac_activate_app();
+
 		__block BOOL granted = FALSE;
 		dispatch_semaphore_t sem = dispatch_semaphore_create(0);
 		[AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio

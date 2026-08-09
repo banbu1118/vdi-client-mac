@@ -274,6 +274,35 @@ static BOOL libavcodec_create_encoder_context(H264_CONTEXT* WINPR_RESTRICT h264)
 		sys->codecEncoderContext->pix_fmt = AV_PIX_FMT_YUV420P;
 	}
 
+	/* 显式声明输入视频的色彩信息，避免编码器/SPS 默认按 limited range +
+	 * BT.601 假设（Windows 服务器端解码器会按 SPS 里的 video_signal_type /
+	 * colour info 解释画面）。
+	 *
+	 * macOS 摄像头交付的数据（AVFoundation 420f/420v 经 camera_avf.m 统一
+	 * 扩展为 full range NV12）是 full range；且高清（>=720p）摄像头按 BT.709
+	 * 矩阵采集。若不设置，SPS 缺 colour info，服务器按 BT.601 + limited
+	 * 解码 full range + BT.709 数据 → 紫绿偏色 + 横纹噪点（不同 macOS/
+	 * 设备交付格式不同，现象只在部分机器复现）。
+	 *
+	 * 数据源保证：
+	 *  - camera_avf.m 已把 420v 扩展为 full range（Y 0-255, UV 0-255）
+	 *  - 分辨率上限 CAM_AVF_MAX_WIDTH/HEIGHT = 1280x720，所以 >=720p 即
+	 *    按 BT.709 处理，<720p 按 BT.601 处理
+	 */
+	sys->codecEncoderContext->color_range = AVCOL_RANGE_JPEG; /* full range */
+	if ((UINT32)h264->height >= 720)
+	{
+		sys->codecEncoderContext->colorspace = AVCOL_SPC_BT709;
+		sys->codecEncoderContext->color_primaries = AVCOL_PRI_BT709;
+		sys->codecEncoderContext->color_trc = AVCOL_TRC_BT709;
+	}
+	else
+	{
+		sys->codecEncoderContext->colorspace = AVCOL_SPC_SMPTE170M;
+		sys->codecEncoderContext->color_primaries = AVCOL_PRI_SMPTE170M;
+		sys->codecEncoderContext->color_trc = AVCOL_TRC_SMPTE170M;
+	}
+
 	if (avcodec_open2(sys->codecEncoderContext, sys->codecEncoder, nullptr) < 0)
 		goto EXCEPTION;
 

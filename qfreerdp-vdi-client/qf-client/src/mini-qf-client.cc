@@ -29,6 +29,11 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 
+/* macOS: 解析可执行文件路径，用于定位打包的 OpenSSL legacy provider */
+#include <climits>
+#include <mach-o/dyld.h>
+#include <unistd.h>
+
 /* WinPR provides a portable WaitForMultipleObjects / Sleep on POSIX */
 #include <winpr/synch.h>
 #include <winpr/string.h>
@@ -2115,6 +2120,26 @@ void start_rdp_connection()
 
 int main(int argc, char* argv[])
 {
+	// OpenSSL legacy provider（md4 摘要所在，NTLM/NLA 认证必需）在打包后位于
+	// <app>/Contents/Frameworks/ossl-modules/。OpenSSL 默认只按编译时 MODULESDIR
+	// 或 OPENSSL_MODULES 环境变量查找 provider 模块，必须在任何 OpenSSL 调用
+	// （WinPR 初始化）之前设置，否则 md4 缺失 → NLA 认证失败
+	// （SEC_E_NO_CREDENTIALS）→ RDP 连接失败。
+	{
+		char exePath[PATH_MAX] = {0};
+		uint32_t exeSize = sizeof(exePath);
+		if (_NSGetExecutablePath(exePath, &exeSize) == 0)
+		{
+			std::string exeDir(exePath);
+			const size_t slash = exeDir.find_last_of('/');
+			if (slash != std::string::npos)
+				exeDir.erase(slash);
+			const std::string modulesDir = exeDir + "/../Frameworks/ossl-modules";
+			if (access(modulesDir.c_str(), R_OK) == 0)
+				setenv("OPENSSL_MODULES", modulesDir.c_str(), 1);
+		}
+	}
+
 	// Store command-line arguments for later use in rdp_loop_thread
 	//
 	// macOS 无法做原始 USB 透传：libusb 枚举/open 可以，但 claim_interface

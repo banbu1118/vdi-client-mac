@@ -34,20 +34,48 @@ cp -R "$ROOT/qfreerdp-vdi-client/build/bin/VDIClient.app" "$PKG_DIR/"
 mkdir -p "$FW"
 
 echo "==> [2/7] 收集非 Qt 依赖到 Frameworks"
+# 统一用 copy_real 复制：先解析软链接链到真实文件，再复制并校验结果，
+# 确保打进 app 的每个 dylib 都是独立真实文件副本（跨机分发无软链接风险）。
+# 来源目录中无版本号的名字（如 install-mac 下 libfreerdp-client3.3.dylib）
+# 可能是软链接，一律解引用到真实文件（libfreerdp-client3.3.28.0.dylib）再复制。
+copy_real() {
+    local src="$1" dst="$2"
+    local real
+    real="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$src")" \
+        || { echo "错误: 无法解析真实路径: $src" >&2; exit 1; }
+    if [ ! -f "$real" ]; then
+        echo "错误: 真实文件不存在: $src -> $real" >&2
+        exit 1
+    fi
+    cp "$real" "$dst"
+    if [ -L "$dst" ]; then
+        echo "错误: 复制后仍为软链接: $dst" >&2
+        exit 1
+    fi
+    echo "  + $(basename "$real") -> $(basename "$dst")"
+}
 # FreeRDP
-cp -L "$ROOT/freerdp-3.28.0/install-mac/lib/libfreerdp3.3.dylib" "$FW/"
-cp -L "$ROOT/freerdp-3.28.0/install-mac/lib/libfreerdp-client3.3.dylib" "$FW/"
-cp -L "$ROOT/freerdp-3.28.0/install-mac/lib/libwinpr3.3.dylib" "$FW/"
+copy_real "$ROOT/freerdp-3.28.0/install-mac/lib/libfreerdp3.3.dylib" "$FW/libfreerdp3.3.dylib"
+copy_real "$ROOT/freerdp-3.28.0/install-mac/lib/libfreerdp-client3.3.dylib" "$FW/libfreerdp-client3.3.dylib"
+copy_real "$ROOT/freerdp-3.28.0/install-mac/lib/libwinpr3.3.dylib" "$FW/libwinpr3.3.dylib"
 # FFmpeg 主体（自编译精简版，minos 13.0）
-cp -L "$DEPS/lib/libavcodec.61.dylib" "$DEPS/lib/libavdevice.61.dylib" \
-      "$DEPS/lib/libavfilter.10.dylib" "$DEPS/lib/libavformat.61.dylib" \
-      "$DEPS/lib/libavutil.59.dylib" "$DEPS/lib/libswresample.5.dylib" \
-      "$DEPS/lib/libswscale.8.dylib" "$FW/"
+copy_real "$DEPS/lib/libavcodec.61.dylib" "$FW/libavcodec.61.dylib"
+copy_real "$DEPS/lib/libavdevice.61.dylib" "$FW/libavdevice.61.dylib"
+copy_real "$DEPS/lib/libavfilter.10.dylib" "$FW/libavfilter.10.dylib"
+copy_real "$DEPS/lib/libavformat.61.dylib" "$FW/libavformat.61.dylib"
+copy_real "$DEPS/lib/libavutil.59.dylib" "$FW/libavutil.59.dylib"
+copy_real "$DEPS/lib/libswresample.5.dylib" "$FW/libswresample.5.dylib"
+copy_real "$DEPS/lib/libswscale.8.dylib" "$FW/libswscale.8.dylib"
 # 其他（自编译，minos 13.0）
-cp -L "$DEPS/lib/libssl.3.dylib" "$DEPS/lib/libcrypto.3.dylib" "$FW/"
-cp -L "$DEPS/lib/libopenh264.8.dylib" "$FW/"
-cp -L "$DEPS/lib/libusb-1.0.0.dylib" "$FW/"
-cp -L "$DEPS/lib/libjson-c.5.dylib" "$FW/"
+copy_real "$DEPS/lib/libssl.3.dylib" "$FW/libssl.3.dylib"
+copy_real "$DEPS/lib/libcrypto.3.dylib" "$FW/libcrypto.3.dylib"
+copy_real "$DEPS/lib/libopenh264.8.dylib" "$FW/libopenh264.8.dylib"
+copy_real "$DEPS/lib/libusb-1.0.0.dylib" "$FW/libusb-1.0.0.dylib"
+copy_real "$DEPS/lib/libjson-c.5.dylib" "$FW/libjson-c.5.dylib"
+# OpenSSL legacy provider（md4 摘要所在，NTLM/NLA 认证必需）。qf-client 启动时
+# 通过 OPENSSL_MODULES 指向此目录（见 mini-qf-client.cc main()）。
+mkdir -p "$FW/ossl-modules"
+copy_real "$DEPS/lib/ossl-modules/legacy.dylib" "$FW/ossl-modules/legacy.dylib"
 # brew 安装的库文件只读（444），macdeployqt strip 时需要写权限
 chmod u+w "$FW"/*.dylib
 
@@ -90,6 +118,15 @@ for f in "$FW"/*.dylib; do
     fix_deps "$f"
     clean_rpaths "$f"
 done
+
+# legacy provider 模块在 ossl-modules/ 子目录，依赖 Frameworks 根的 libcrypto，
+# 相对路径为 ../，单独修正其引用与 rpath（不在上面 "$FW"/*.dylib 循环内）
+LEGACY_MODULE="$FW/ossl-modules/legacy.dylib"
+if [ -f "$LEGACY_MODULE" ]; then
+    fix_deps "$LEGACY_MODULE"
+    install_name_tool -add_rpath @loader_path/.. "$LEGACY_MODULE" 2>/dev/null || true
+    clean_rpaths "$LEGACY_MODULE"
+fi
 
 # qf-client 主程序：加 @executable_path/../Frameworks rpath，Qt 引用留给 macdeployqt
 QF_EXE="$QF_APP/Contents/MacOS/qf-client"

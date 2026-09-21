@@ -522,7 +522,10 @@ static UINT handle_hotplug(WINPR_ATTR_UNUSED RdpdrClientContext* context,
 	DEVICE_DRIVE_EXT* device_ext = nullptr;
 	ULONG_PTR* keys = nullptr;
 	int size = 0;
-	UINT error = ERROR_INTERNAL_ERROR;
+	/* 返回值是 Win32 错误码：CHANNEL_RC_OK(0) 表示本次枚举正常完成。
+	 * 上游初始化为 ERROR_INTERNAL_ERROR，导致「/Volumes 为空」或
+	 * 「所有卷都已注册」时也会被 first_hotplug() 当成失败打印错误。 */
+	UINT error = CHANNEL_RC_OK;
 
 	DIR* pDir = opendir(szdir);
 
@@ -537,7 +540,14 @@ static UINT handle_hotplug(WINPR_ATTR_UNUSED RdpdrClientContext* context,
 		if (pDirent->d_name[0] != '.')
 		{
 			(void)sprintf_s(fullpath, ARRAYSIZE(fullpath), "%s/%s", szdir, pDirent->d_name);
-			if (stat(fullpath, &buf) != 0)
+			/* 用 lstat 而不是 stat：不跟随符号链接。macOS 启动卷在 /Volumes
+			 * 下是指向 / 的符号链接，跟随它会把整个根文件系统当成一个盘符
+			 * 重定向给远程会话。 */
+			if (lstat(fullpath, &buf) != 0)
+				continue;
+
+			/* 跳过符号链接与 macOS 恢复卷：都不是用户的存储设备 */
+			if (S_ISLNK(buf.st_mode) || (strcmp(pDirent->d_name, "Recovery") == 0))
 				continue;
 
 			if (S_ISDIR(buf.st_mode))
@@ -622,9 +632,14 @@ static UINT handle_hotplug(WINPR_ATTR_UNUSED RdpdrClientContext* context,
 		{
 			const char* path = dev->path;
 			const char* name = strrchr(path, '/') + 1;
-			error = rdpdr_load_drive(rdpdr, name, path, TRUE);
-			if (error)
+			/* rdpdr_load_drive() 返回 BOOL：TRUE 表示注册成功。上游这里把它
+			 * 当成错误码用（if (error) goto cleanup），于是第一个卷注册成功后
+			 * 就中断枚举，/Volumes 下其余的卷（U 盘、移动硬盘等）全被丢弃。 */
+			if (!rdpdr_load_drive(rdpdr, name, path, TRUE))
+			{
+				error = ERROR_INTERNAL_ERROR;
 				goto cleanup;
+			}
 		}
 	}
 

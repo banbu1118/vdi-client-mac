@@ -2,7 +2,7 @@
 
 macOS 桌面 **VDI 远程桌面客户端**（虚拟桌面基础设施客户端，即"云电脑"客户端）：登录 VDI 服务器、管理虚拟机、连接远程桌面，基于自编译 FreeRDP 3.28.0 + Qt 6。
 
-支持 **macOS 13 - 26（arm64）**，部署目标固定 13.0。
+支持 **macOS 13 - 27（arm64）**，部署目标固定 13.0。
 
 ## 功能特性
 
@@ -11,7 +11,7 @@ macOS 桌面 **VDI 远程桌面客户端**（虚拟桌面基础设施客户端�
 | RDP 连接 | GFX + AVC444，FFmpeg 软解 H.264，解码已线程化；QRhiTexture + Metal 渲染 |
 | 登录 / VM 管理 | Qt Widgets 界面：Token 登录、VM 列表/电源管理、快照、心跳保活、多语言（中/英/日/繁） |
 | 剪贴板 | 双向文本 + 文件传输（CF_HDROP / FileGroupDescriptorW） |
-| 磁盘重定向 | macOS libusb 无法透传 USB，改为把 /Volumes 卷映射为 RDPDR 盘符 |
+| 磁盘重定向 | 由 `.rdp` 的磁盘重定向开关驱动：启用后把当前用户主目录与 `/Volumes` 下的本地卷（U 盘、移动硬盘、NAS 网络共享）映射为 RDPDR 盘符，支持热插拔实时增删，已过滤符号链接与 Recovery 卷（已修复 3 处 FreeRDP 源码问题） |
 | 摄像头重定向 | 自研 AVFoundation 后端 + VideoToolbox 硬编 H.264，2 秒空闲自动暂停（自动关灯） |
 | 麦克风重定向 | 官方 audin `mac/` 后端（CoreAudio），已修复 3 处 FreeRDP 源码问题 |
 
@@ -37,14 +37,14 @@ VDIClient.app (Qt Widgets 登录/VM 界面)
 | `.deps-mac13/` | 预编译第三方依赖：精简 FFmpeg、OpenSSL、json-c、libusb、openh264、spdlog/fmt |
 | `scripts/` | `build-freerdp-mac.sh`（FreeRDP 构建）、`package-dmg.sh`（DMG 打包）、`check-bundle.sh`（依赖自检） |
 | `docs/` | 构建与修复方案文档 |
-| `build/` | 打包产物 `VDIClient-1.5.0.dmg` |
+| `build/` | 打包产物 `VDIClient-1.6.1.dmg` |
 
 ## 构建与打包
 
 依赖：Xcode 命令行工具、CMake、Ninja、Homebrew OpenSSL@3、Qt 6.11.1（arm64）、`.deps-mac13`。
 
 ```bash
-# ① FreeRDP（含源码级修改，见 docs/build-freerdp-mac.md 第 6 节）
+# ① FreeRDP（含源码级修改，见 docs/build-freerdp-mac.md 第 6、7 节）
 bash scripts/build-freerdp-mac.sh
 
 # ② 主工程
@@ -58,9 +58,9 @@ bash scripts/package-dmg.sh
 bash scripts/check-bundle.sh
 ```
 
-产物：`build/VDIClient-1.5.0.dmg`（单应用 DMG，ad-hoc 签名未公证）。完整可重复构建流程（从零到 DMG）已验证通过。
+产物：`build/VDIClient-1.6.1.dmg`（单应用 DMG，ad-hoc 签名未公证）。完整可重复构建流程（从零到 DMG）已验证通过。
 
 ## 文档
 
-- [docs/build-freerdp-mac.md](docs/build-freerdp-mac.md) — FreeRDP 构建逻辑、依赖版本冲突修复、部署目标、FreeRDP 源码修改记录
+- [docs/build-freerdp-mac.md](docs/build-freerdp-mac.md) — FreeRDP 构建逻辑、依赖版本冲突修复、部署目标、FreeRDP 源码修改记录（麦克风重定向、磁盘重定向/热插拔）
 - [qt-qml-rdp-client-goal.md](qt-qml-rdp-client-goal.md) — Windows 版客户端目标文档（保留作参考，本项目为 macOS 版）

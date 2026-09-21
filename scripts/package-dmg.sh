@@ -24,7 +24,7 @@ QF_APP="$VDI_APP/Contents/MacOS/bin/qf-client.app"
 FW="$QF_APP/Contents/Frameworks"
 MACDEPLOYQT="/Users/kk/.local/share/qt-official/6.11.1/macos/bin/macdeployqt"
 DEPS="$ROOT/.deps-mac13"
-VERSION="1.5.0"
+VERSION="1.6.1"
 
 echo "==> [1/7] 准备 staging 目录"
 rm -rf "$PKG_DIR"

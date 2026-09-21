@@ -742,7 +742,11 @@ ADDIN_ARGV* freerdp_addin_argv_new(size_t argc, const char* const argv[])
 		for (size_t x = 0; x < argc; x++)
 		{
 			args->argv[x] = _strdup(argv[x]);
-			if (!args->argv[x])
+			/* 允许 NULL 占位：freerdp_device_new() 用 args[2] == NULL 表示
+			 * 「该盘符自动挂载」（RDPDR_DRIVE.automount），rdpdr 的热插拔
+			 * 就是靠它注册 /Volumes 下的卷。_strdup(NULL) 返回 NULL，旧代码
+			 * 会因此把整个设备创建判为失败，导致热插拔一个卷都注册不上。 */
+			if (!args->argv[x] && argv[x])
 				goto fail;
 		}
 	}

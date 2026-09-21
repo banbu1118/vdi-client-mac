@@ -6,10 +6,10 @@
 > macOS 版关键差异：
 > - 渲染：`QRhiTexture` + Metal 后端（CPU staging buffer 上传），无 D3D11；
 > - 摄像头：自研 AVFoundation（`avf/`）后端（官方仅 wmf/v4l/android）。采集侧**直连 VideoToolbox 硬编**（`VTCompressionSession` 直接消费 CVPixelBuffer，零拷贝；色彩属性随 buffer 附件输出，SPS VUI 正确，解决部分设备紫绿偏色/横纹问题）；`activeFormat` 按「尺寸+像素格式+帧率」三重精确匹配；空闲 2 秒自动暂停（自动关灯，再次请求透明恢复）；**已在实机验证正常**；麦克风：官方 audin `mac/` 后端（已修复 3 处 FreeRDP 源码问题，见 [docs/build-freerdp-mac.md](docs/build-freerdp-mac.md#6-freerdp-源码级修改记录麦克风重定向2026-08-05)）；
-> - 原始 USB 透传（urbdrc/libusb）在 macOS 不可行，已转 RDPDR 磁盘重定向；
+> - 原始 USB 透传（urbdrc/libusb）在 macOS 不可行，已转 RDPDR 磁盘重定向（由 `.rdp` 开关驱动，重定向主目录 + `/Volumes` 下的 U 盘/移动硬盘/NAS，支持热插拔实时增删；已修复 3 处 FreeRDP 源码问题，见 [build 文档第 7 节](docs/build-freerdp-mac.md#7-freerdp-源码级修改记录磁盘重定向--热插拔2026-09-21)）；
 > - 项目已合并为 `qfreerdp-vdi-client/` 单项目：qf-client 内嵌进 `VDIClient.app`（单应用产物），qf-client 设 `LSUIElement=true` 无 Dock 图标；
 > - 打包：`scripts/package-dmg.sh` 产出 DMG（`hdiutil makehybrid + convert`，沙箱兼容），ad-hoc 签名未公证；
-> - 部署目标固定 **macOS 13.0**（主程序 + 全部 dylib minos=13.0，支持 13-26）；`check-bundle.sh` 自检 PASS；从零到 DMG 的完整可重复构建已验证通过（见 build 文档第 7 节）；
+> - 部署目标固定 **macOS 13.0**（主程序 + 全部 dylib minos=13.0，支持 13-27）；`check-bundle.sh` 自检 PASS；从零到 DMG 的完整可重复构建已验证通过（见 build 文档第 8 节）；
 > - **当前状态（2026-08-09）**：`build/VDIClient-1.5.0.dmg` 安装后**运行正常**，**摄像头重定向实测正常**（含此前在另一台设备复现的紫绿偏色+横纹+双画面问题验证）；其余功能（剪贴板/磁盘/麦克风）待回归。
 
 本文档记录基于 libfreerdp 构建的 VDI 远程桌面客户端的工作计划与实际状态。当前三个项目均为 **Windows (MSVC 2022)** 环境。

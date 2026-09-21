@@ -80,79 +80,52 @@ static bool g_cli_parsed = false;
 /* Resolution passed via command-line /w: and /h: (0 = not specified) */
 static uint32_t g_cli_width = 0;
 static uint32_t g_cli_height = 0;
-static std::vector<std::string> g_saved_drive_args;  // 保存的 /drive: 参数，用于重连时恢复
-static std::vector<std::string> g_raw_drive_args;    // main() 里过滤出的原始 /drive: 参数（不含前缀），统一由 qf 展开挂载
-
-/* 展开磁盘重定向路径中的环境变量 / 主目录占位符：
- *   $HOME / ${HOME} / % / ~ -> 用户主目录；$VAR / ${VAR} -> 环境变量值。
- * FreeRDP 不会展开 /drive:name,path 里的路径，macOS 下服务器下发的 $HOME
- * 若不展开就是字面量路径，设备会因目录不存在被静默跳过。 */
-static std::string qf_expand_drive_path(const std::string& arg)
+/* 一个待重定向进虚拟机的本地存储：name 为虚拟机内显示的盘符名，path 为本地路径 */
+struct qf_drive_entry
 {
 	std::string name;
-	std::string path = arg;
-	auto comma = path.find(',');
-	if (comma != std::string::npos)
+	std::string path;
+};
+/* 首次解析 .rdp 时确定，重连时直接复用（重连不会再解析命令行） */
+static std::vector<qf_drive_entry> g_saved_drives;
+
+/* 磁盘重定向是否启用 —— 只由 .rdp 的磁盘重定向开关决定：
+ *   redirectdrives:i:1    -> FreeRDP_RedirectDrives
+ *   drivestoredirect:s:…  -> FreeRDP_DrivesToRedirect
+ * 命令行 /drive:name,path 不再是触发条件。 */
+static bool qf_drive_redirect_enabled(rdpSettings* settings)
+{
+	if (freerdp_settings_get_bool(settings, FreeRDP_RedirectDrives) ||
+	    freerdp_settings_get_bool(settings, FreeRDP_RedirectHomeDrive))
+		return true;
+
+	const char* drives = freerdp_settings_get_string(settings, FreeRDP_DrivesToRedirect);
+	return drives && (drives[0] != '\0');
+}
+
+/* 收集需要重定向进虚拟机的本地存储：
+ *   1) 当前登录用户的主目录；
+ *   2) path 为 "*" 的通配设备 —— 由 rdpdr 的 macOS 热插拔逻辑枚举 /Volumes
+ *      下的本地卷（U 盘、移动硬盘、NAS 网络共享）并在插拔时实时增删，所以
+ *      这里不预先枚举具体卷，避免出现重复盘符。
+ * 符号链接与系统恢复卷已在 rdpdr_main.c 的 handle_hotplug() 中过滤。 */
+static std::vector<qf_drive_entry> qf_collect_local_drives()
+{
+	std::vector<qf_drive_entry> drives;
+
+	const QString home = QDir::homePath();
+	if (!home.isEmpty())
 	{
-		name = path.substr(0, comma + 1); /* 含逗号 */
-		path = path.substr(comma + 1);
+		/* 盘符名固定用 "home"，不能用 QDir(home).dirName()（即用户名）：
+		 * RDPDR 的设备名就是虚拟机里的 \\tsclient\<name>，同名设备只会
+		 * 映射出一个。若卷标恰好与用户名相同（如 /Users/kk 与 /Volumes/kk），
+		 * U 盘会被主目录顶掉，表现为「只有 home 被重定向」。 */
+		drives.push_back({std::string("home"), home.toStdString()});
 	}
 
-	std::string result;
-	result.reserve(path.size() + 64);
-	for (size_t i = 0; i < path.size();)
-	{
-		const char c = path[i];
-		if (c == '$')
-		{
-			size_t j = i + 1;
-			const bool brace = (j < path.size() && path[j] == '{');
-			if (brace)
-				++j;
-			const size_t start = j;
-			while (j < path.size() &&
-			       (std::isalnum(static_cast<unsigned char>(path[j])) || path[j] == '_'))
-				++j;
-			if (j > start)
-			{
-				std::string var = path.substr(start, j - start);
-				size_t consumed = j;
-				if (brace && j < path.size() && path[j] == '}')
-					++consumed;
-				const char* val = getenv(var.c_str());
-				if (val)
-					result += val;
-				else
-					result += path.substr(i, consumed - i);
-				i = consumed;
-				continue;
-			}
-		}
-		else if (c == '%')
-		{
-			if (i + 1 < path.size() && path[i + 1] == '%')
-			{
-				result += '%';
-				i += 2;
-				continue;
-			}
-			const char* home = getenv("HOME");
-			result += home ? home : "";
-			++i;
-			continue;
-		}
-		else if (c == '~' && i == 0 &&
-		         (i + 1 >= path.size() || path[i + 1] == '/'))
-		{
-			const char* home = getenv("HOME");
-			result += home ? home : "~";
-			++i;
-			continue;
-		}
-		result += c;
-		++i;
-	}
-	return name + result;
+	drives.push_back({std::string("media"), std::string("*")});
+
+	return drives;
 }
 static std::shared_ptr<qf::client_t> g_client = {};
 static std::atomic<bool> g_reconnectRequested{false};
@@ -1446,38 +1419,28 @@ static BOOL my_pre_connect(freerdp* instance)
 			g_cli_height = 0;
 		}
 
-		// 保存 /drive: 参数用于重连时恢复（展开 $HOME 等环境变量）。
-		// 参数已在 main() 中被过滤、未交给 FreeRDP 解析，这里统一展开后走
-		// 下方恢复逻辑挂载——与 /usb: 转磁盘重定向完全同一路径，保证
-		// "服务器下发 /drive:HOME,$HOME 即重定向用户主目录" 的一致行为。
-		g_saved_drive_args.clear();
-		for (const auto& arg : g_raw_drive_args)
-			g_saved_drive_args.push_back(qf_expand_drive_path(arg));
-
-		// 处理 /drives 简写 — 枚举 /Volumes 下的本地卷并添加到重定向列表
-		for (int i = 1; i < g_cli_argc; i++)
+		// 磁盘重定向 — 由 .rdp 中的磁盘重定向开关驱动（redirectdrives:i:1
+		// 或 drivestoredirect:s:…）。开关打开时，把当前登录用户的主目录与
+		// /Volumes 下的本地卷（U 盘、移动硬盘、NAS 网络共享）重定向进虚拟机，
+		// 后者由 rdpdr 热插拔机制注册，插拔会实时同步；开关关闭时不注册盘符。
+		g_saved_drives.clear();
+		if (qf_drive_redirect_enabled(settings))
 		{
-			if (g_cli_argv[i] && strcmp(g_cli_argv[i], "/drives") == 0)
-			{
-				qf::log::warn("rdp/pre-connect",
-				              "/drives: enumerating mounted volumes under /Volumes");
-				QDir volumes(QStringLiteral("/Volumes"));
-				const QStringList entries = volumes.entryList(QDir::Dirs | QDir::NoDotAndDotDot,
-				                                              QDir::Name);
-				for (const QString& entry : entries)
-				{
-					QString path = QStringLiteral("/Volumes/") + entry;
-					QByteArray pathUtf8 = path.toUtf8();
-					QByteArray nameUtf8 = entry.toUtf8();
-					std::string arg = std::string(nameUtf8.constData()) + "," +
-					                  std::string(pathUtf8.constData());
-					g_saved_drive_args.push_back(arg);
-					qf::log::warn("rdp/pre-connect",
-					              "/drives: added {}", arg);
-				}
-				break;
-			}
+			g_saved_drives = qf_collect_local_drives();
+			qf::log::info("rdp/pre-connect",
+			              ".rdp drive redirection enabled: {} local storage(s)",
+			              g_saved_drives.size());
+
+			// 盘符已由 qf 全量枚举，清空 FreeRDP 自带的盘符配置。否则
+			// freerdp_client_load_addins 会在 pre-connect 之后按 '*' 通配再
+			// 注册一遍，导致虚拟机内同一存储出现重复盘符。
+			freerdp_settings_set_bool(settings, FreeRDP_RedirectDrives, FALSE);
+			freerdp_settings_set_bool(settings, FreeRDP_RedirectHomeDrive, FALSE);
+			freerdp_settings_set_string(settings, FreeRDP_DrivesToRedirect, nullptr);
 		}
+		else
+			qf::log::info("rdp/pre-connect",
+			              ".rdp drive redirection disabled: no drive redirected");
 
 		// FreeRDP 的 CLI 解析器处理 /clipboard:direction-to:* 和 /clipboard:files-to:*
 		// 等子选项时，只会更新 FreeRDP_ClipboardFeatureMask，但不会设置
@@ -1576,41 +1539,19 @@ static BOOL my_pre_connect(freerdp* instance)
 		}
 	}
 
-	// 磁盘重定向 — 从保存的 CLI 参数恢复（首次连接或重连均执行）
-	if (!g_saved_drive_args.empty() &&
+	// 磁盘重定向 — 注册上面枚举出的本地存储（首次连接或重连均执行）
+	if (!g_saved_drives.empty() &&
 	    !freerdp_device_collection_find_type(settings, RDPDR_DTYP_FILESYSTEM))
 	{
-		for (const auto& arg : g_saved_drive_args)
+		for (const auto& drive : g_saved_drives)
 		{
-			auto comma = arg.find(',');
-			std::string name;
-			std::string path = arg;
-			if (comma != std::string::npos)
-			{
-				name = arg.substr(0, comma);
-				path = arg.substr(comma + 1);
-			}
-			else
-			{
-				// 无 name 的 /drive:path 形式（FreeRDP 语法：盘符名由路径推导）。
-				// 之前 FreeRDP 解析时自动推导 basename；过滤后这里保持一致。
-				auto slash = path.find_last_of('/');
-				name = (slash == std::string::npos) ? path
-				                                    : path.substr(slash + 1);
-			}
-			if (name.empty() || path.empty())
-			{
-				qf::log::warn("rdp/pre-connect",
-				              "invalid saved drive arg: {}", arg);
-				continue;
-			}
-			const char* args[] = {"drive", name.c_str(), path.c_str(), nullptr};
+			const char* args[] = {"drive", drive.name.c_str(), drive.path.c_str(), nullptr};
 			if (!freerdp_client_add_device_channel(settings, 3, args))
 				qf::log::error("rdp/pre-connect",
-				               "restore drive {} -> {} failed", name, path);
+				               "redirect drive {} -> {} failed", drive.name, drive.path);
 			else
 				qf::log::info("rdp/pre-connect",
-				              "restored drive {} -> {}", name, path);
+				              "redirected drive {} -> {}", drive.name, drive.path);
 		}
 	}
 
@@ -2144,8 +2085,9 @@ int main(int argc, char* argv[])
 	//
 	// macOS 无法做原始 USB 透传：libusb 枚举/open 可以，但 claim_interface
 	// 会被系统拒绝（实测 LIBUSB_ERROR_ACCESS，接口被内核驱动独占）。USB
-	// 重定向已取消（/usb: 参数直接忽略）；磁盘重定向 /drive: 由 qf 统一
-	// 展开 $HOME 后挂载（见 g_raw_drive_args / my_pre_connect）。
+	// 重定向已取消（/usb: 参数直接忽略）。
+	// 磁盘重定向改由 .rdp 中的磁盘重定向开关驱动（见 my_pre_connect），
+	// 服务器下发的 /drive: 参数不再消费，仅过滤避免阻塞 FreeRDP 解析。
 	// /cam:（rdpecam 摄像头）仍不支持，继续过滤避免解析失败阻塞连接。
 	{
 		static std::vector<char*> filtered_argv;
@@ -2155,12 +2097,12 @@ int main(int argc, char* argv[])
 		{
 			if (argv[i] && strncmp(argv[i], "/drive:", 7) == 0)
 			{
-				// /drive: 不交给 FreeRDP 解析。原因：FreeRDP 会按字面量路径先
-				// 校验存在性——路径存在时直接把服务器原始路径挂载进设备集合
-				// （导致"重定向的不是用户目录"）；路径为 $HOME 等字面量时又
-				// 跳过设备。两分支行为不一致且都不受 qf 的 $HOME 展开控制。
-				// 统一由 qf 展开后走恢复逻辑挂载，保证行为一致。
-				g_raw_drive_args.push_back(argv[i] + 7);
+				// 磁盘重定向已按 .rdp 开关全量枚举本地存储，服务器的
+				// /drive:name,path 不再使用。另外 FreeRDP 会按字面量路径校验
+				// 存在性（$HOME 之类的字面量必然失败并阻塞解析），故直接过滤。
+				qf::log::warn("rdp/cli",
+				              "drive redirection is driven by the .rdp file; ignoring {}",
+				              argv[i]);
 				continue;
 			}
 			if (argv[i] && strncmp(argv[i], "/usb:", 5) == 0)

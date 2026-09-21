@@ -5,10 +5,10 @@ cmake_minimum_required(VERSION 3.16)
 #                      + qf-client(RDP 渲染/连接核心, Qt QML + FreeRDP)
 # 合并自独立项目 vdi-client-mac 与 qfreerdp-mac，一次构建产出两个 .app
 # ============================================================
-project(VDIClientSuite VERSION 1.5.0 LANGUAGES C CXX)
+project(VDIClientSuite VERSION 1.6.1 LANGUAGES C CXX)
 
 # 支持 macOS 13+：.deps 自编译库与 Qt 均按 13.0 构建。
-# 不显式设置会默认跟随当前系统 minos（如 macOS 26），导致在旧系统上无法加载。
+# 不显式设置会默认跟随当前系统 minos（如 macOS 27），导致在旧系统上无法加载。
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 
 set(VCI_VERSION "${PROJECT_VERSION}")

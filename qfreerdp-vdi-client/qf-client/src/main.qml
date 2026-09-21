@@ -87,9 +87,9 @@ Window {
         onContainsMouseChanged: {
             if (containsMouse) {
                 hideDelayTimer.stop()
-                toolbar.visible = true
-                toolbar.y = toolbar.shownY
+                showDelayTimer.restart()
             } else {
+                showDelayTimer.stop()
                 hideDelayTimer.restart()
             }
         }
@@ -238,6 +238,17 @@ Window {
                 }
             }
             ToolButton { text: "\u2715"; isClose: true; onClicked: Qt.quit() }
+        }
+    }
+
+    // ========== 延时显示定时器 ==========
+    // 鼠标需在顶部热区停留 1 秒才弹出工具栏，避免划过顶部边缘时误触发
+    Timer {
+        id: showDelayTimer
+        interval: 1000
+        onTriggered: {
+            toolbar.visible = true
+            toolbar.y = toolbar.shownY
         }
     }
 

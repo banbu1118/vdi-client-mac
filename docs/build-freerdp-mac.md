@@ -1,7 +1,7 @@
 # build-freerdp-mac.sh 构建逻辑与依赖版本冲突修复方案
 
 > 关联脚本：[scripts/build-freerdp-mac.sh](../scripts/build-freerdp-mac.sh)
-> 适用环境：macOS (Apple Silicon / arm64)，FreeRDP 3.28.0，部署目标 **macOS 13.0+**（13-26 已验证）
+> 适用环境：macOS (Apple Silicon / arm64)，FreeRDP 3.28.0，部署目标 **macOS 13.0+**（13-27 已验证）
 
 ## 1. 脚本职责
 
@@ -137,7 +137,7 @@ bash scripts/check-bundle.sh   # 期望输出: PASS: 所有依赖均可在 bundl
   ```
 
 - **改库后同步 install**：修改 FreeRDP 源码重编后，若 `cmake --install` 判定 install-mac 中 dylib "Up-to-date" 跳过复制，需核对 `stat` 两个路径的 mtime，必要时手动 `cp` + `install_name_tool` 修正 rpath + 重新 ad-hoc 签名。
-- **干净重建时删缓存**：`freerdp-3.28.0/build-mac/`、`freerdp-3.28.0/install-mac/`、`qfreerdp-vdi-client/build/`、`build/`（打包产物，含 `package/` staging 与 DMG）均可安全删除；`.deps-mac13/` 是预编译输入依赖，**不可删**。从零到最终 DMG 的完整可重复构建命令见第 7 节（2026-08-05 已验证通过）。
+- **干净重建时删缓存**：`freerdp-3.28.0/build-mac/`、`freerdp-3.28.0/install-mac/`、`qfreerdp-vdi-client/build/`、`build/`（打包产物，含 `package/` staging 与 DMG）均可安全删除；`.deps-mac13/` 是预编译输入依赖，**不可删**。从零到最终 DMG 的完整可重复构建命令见第 8 节（2026-08-05 已验证通过）。
 
 ## 5. macOS 部署目标（13.0）
 
@@ -154,7 +154,7 @@ bash scripts/check-bundle.sh   # 期望输出: PASS: 所有依赖均可在 bundl
 vtool -show-build <任意主程序或 dylib> | awk '/minos/{print $2; exit}'
 ```
 
-`.deps-mac13` 预编译库本身即为 minos 13.0；Qt 6.11.1 官方库亦支持 13.0+；代码未使用 26 特有 API → **最终产物支持 macOS 13-26**（arm64）。
+`.deps-mac13` 预编译库本身即为 minos 13.0；Qt 6.11.1 官方库亦支持 13.0+；代码未使用 27 特有 API → **最终产物支持 macOS 13-27**（arm64）。
 
 ## 6. FreeRDP 源码级修改记录（麦克风重定向，2026-08-05）
 
@@ -168,13 +168,51 @@ vtool -show-build <任意主程序或 dylib> | awk '/minos/{print $2; exit}'
 
 配套的 FreeRDP 摄像头自研后端（AVFoundation `avf/` + VideoToolbox 硬编）与上述修复均随 dylib 分发，无需额外文件。
 
-## 7. 完整可重复构建流程（已验证）
+## 7. FreeRDP 源码级修改记录（磁盘重定向 / 热插拔，2026-09-21）
+
+磁盘重定向（RDPDR 盘符映射）由 `.rdp` 的磁盘重定向开关驱动，链路分两层：
+
+- **App 层**（`qfreerdp-vdi-client/qf-client/src/mini-qf-client.cc`，非 FreeRDP 源码）：开关打开时注册两个设备 —— 当前登录用户主目录（盘符名固定 `home`）与通配设备 `{"drive","media","*"}`；`/Volumes` 下的实际卷由下面的 rdpdr 热插拔机制自行枚举，插拔实时增删。开关判定读 `RedirectDrives` / `RedirectHomeDrive` / `DrivesToRedirect`，命令行 `/drive:` 不再作为触发条件。
+- **通道层**（`channels/rdpdr/client/rdpdr_main.c`）：macOS 分支用 `FSEventStreamCreate(CFSTR("/Volumes/"))` 监听卷变化，注册/注销盘符。
+
+热插拔注册链路上修复了 3 处 FreeRDP 源码问题（前两处都在 `rdpdr_main.c` 的 `handle_hotplug()` / `first_hotplug()` 路径上）：
+
+| 文件 | 修改 | 解决 |
+|------|------|------|
+| `channels/rdpdr/client/rdpdr_main.c`（`handle_hotplug()` 枚举 `/Volumes`） | `stat` 改为 `lstat`；跳过 `S_ISLNK` 与 `Recovery` 卷 | macOS 启动卷在 `/Volumes` 下是指向 `/` 的**符号链接**，跟随它会把整个根文件系统当成一个盘符重定向给远程会话；`Recovery` 是恢复卷，非用户存储 |
+| `channels/rdpdr/client/rdpdr_main.c`（`handle_hotplug()` 注册循环） | `error = rdpdr_load_drive(...); if (error) goto cleanup;` → `if (!rdpdr_load_drive(...)) { error = ERROR_INTERNAL_ERROR; goto cleanup; }`；`error` 初值由 `ERROR_INTERNAL_ERROR` 改为 `CHANNEL_RC_OK` | `rdpdr_load_drive()` 返回 **BOOL**（TRUE=成功）却被当作错误码判断，导致**第一个卷注册成功后立即跳出循环**，`/Volumes` 里其余卷全部丢弃；且 `FALSE(=0)` 会让失败被静默吞掉（空 `/Volumes` 时也不再误报错误） |
+| `libfreerdp/common/settings.c`（`freerdp_addin_argv_new()`） | 允许 NULL 元素：`if (!args->argv[x] && argv[x]) goto fail;` | `rdpdr_load_drive()` 用 `args[2] == NULL` 表示"该盘符自动挂载"（`RDPDR_DRIVE.automount`），但 `_strdup(NULL)` 返回 NULL 被旧代码判为失败 → `freerdp_device_new()` 返回 NULL → **macOS 上一个卷都注册不上**（U 盘/移动硬盘/NAS 全部失踪）。保留 NULL 占位语义后，`freerdp_device_clone()` 造出的副本也能带上 `automount=TRUE`，拔盘才会被正确注销 |
+
+另有 1 处 App 层修改（`mini-qf-client.cc`）：用户主目录的盘符名固定为 `home`，原先取 `QDir::homePath().dirName()`（即**用户名**）。RDPDR 的设备名就是虚拟机内的 `\\tsclient\<name>`，用户名与卷标重名（如 `/Users/kk` 与 U 盘卷标 `kk`）会使其中一个盘符被顶掉。
+
+> 排查手段：qf-client 自身只输出到 stderr（无落地日志文件），但 FreeRDP/WinPR 侧可用环境变量把日志写文件。**必须从终端启动**，环境变量才会经 `QProcess` 传给内嵌的 qf-client：
+>
+> ```bash
+> rm -f /tmp/qf-rdpdr.log
+> WLOG_APPENDER=FILE WLOG_LEVEL=DEBUG \
+> WLOG_FILEAPPENDER_OUTPUT_FILE_PATH=/tmp \
+> WLOG_FILEAPPENDER_OUTPUT_FILE_NAME=qf-rdpdr.log \
+> "/Applications/VDIClient.app/Contents/MacOS/VDIClient"
+> ```
+>
+> 关键日志行（`1359` = `ERROR_INTERNAL_ERROR`；`device #N` 即最终宣告给服务器的盘符清单）：
+>
+> ```
+> [devman_load_device_service]: Loading device service drive [home] (static)
+> [first_hotplug]: handle_hotplug failed with error 1359!                  ← 修复前
+> [drive_hotplug_thread_func]: Started hotplug watcher
+> [device_announce]: registered [    drive] device #1:  home (type= 8 id= 1)
+> ```
+
+> 另注：`scripts/package-dmg.sh` 每次打包会往 `/Volumes` 挂载一个 `dmg-stage` 镜像，若未弹出，它也会被当作可重定向盘符（多个同名镜像截断后都是 `dmg-stag`）。
+
+## 8. 完整可重复构建流程（已验证）
 
 ```bash
 # ① 清理全部构建产物（.deps-mac13 保留）
 rm -rf build freerdp-3.28.0/build-mac freerdp-3.28.0/install-mac qfreerdp-vdi-client/build
 
-# ② FreeRDP（含第 6 节源码修改 + minos 13.0）
+# ② FreeRDP（含第 6、7 节源码修改 + minos 13.0）
 bash scripts/build-freerdp-mac.sh
 
 # ③ 主工程（qf-client 内嵌 VDIClient.app）

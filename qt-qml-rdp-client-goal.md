@@ -125,10 +125,12 @@ VDIClient 通过 `QProcess` 启动 qf-client：请求服务器获取连接命令
 | RemoteApp | ✅ | ✅ | ❌ | 未实现；`CHANNEL_RAIL=ON` 已编译但未使用 | — |
 | RemoteApp 无缝窗口 | ✅ | ✅ | ❌ | 未实现 | — |
 | 远程协助 / 会话影子 | ✅ | ✅ | ❌ | 未实现 | — |
-| 鼠标输入 | ✅ | ✅ | ✅ | 坐标缩放映射到 RDP 分辨率 | `mouseEventScaleSend()` → `freerdp_input_send_mouse_event()` |
+| 鼠标输入 | ✅ | ✅ | ✅ | 坐标缩放映射到 RDP 分辨率；按键经映射表（左/右/中 → `PTR_FLAGS_BUTTON1/2/3`） | `mouseEventScaleSend()` → `freerdp_input_send_mouse_event()`；`ptr_flags_from_qt_button()` |
+| 鼠标滚轮（滚动 + 中键按压） | ✅ | ✅ | ✅ | 垂直滚动与中键按压均已支持；中键按压是 3D/CAD 软件里的平移手势 | 滚动：`wheelEvent()` 取 `angleDelta().y()`，1 格 = 120 单位 → `PTR_FLAGS_WHEEL`（负向补 `PTR_FLAGS_WHEEL_NEGATIVE`，再 `& WheelRotationMask`）；中键：`ptr_flags_from_qt_button()` → `PTR_FLAGS_BUTTON3`（按下补 `PTR_FLAGS_DOWN`，松开不带） |
+| 鼠标水平滚动（HWHEEL） | ✅ | ✅ | ❌ | 未实现：`wheelEvent()` 只读 `angleDelta().y()`，Shift+滚轮 / 触控板横滑不生效；需按官方 Mac 客户端补 `PTR_FLAGS_HWHEEL` 分支 | — |
 | 相对鼠标模式 | ✅ | ✅ | ❌ | 未实现 | — |
 | 鼠标捕获 | ✅ | ✅ | ❌ | 未实现 | — |
-| 鼠标侧键 (XButton1/2) | ✅ | ✅ | ❌ | 未实现 | — |
+| 鼠标侧键 (XButton1/2) | ✅ | ✅ | ❌ | 未实现：需走扩展鼠标事件（`PTR_XFLAGS_BUTTON1/2`），当前按键映射表无对应项、返回 0 直接跳过发送（不再被错标成右键） | `ptr_flags_from_qt_button()` 的 default 分支 |
 | RDP Pointer（光标通道） | ✅ | ✅ | ✅ | 完整实现：Pointer 六回调 + XOR/AND 解码 + unordered_map 缓存 + SYSPTR_NULL 自动隐藏 + 3px 移动阈值恢复 + 2000ms 防抖 | `graphics_register_pointer` 六回调；`freerdp_image_copy_from_pointer_data()` 解码 → QCursor |
 | 键盘扫描码 | ✅ | ✅ | ✅ | 一致 | `qf::to_freerdp_key_code()` 查找表 → `freerdp_input_send_keyboard_event_ex()` |
 | Unicode 输入 | ✅ | ✅ | ✅ | 扫描码回退到 Unicode | 键码映射失败时回退到 `freerdp_input_send_unicode_keyboard_event()` |
